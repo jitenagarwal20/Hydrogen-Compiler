@@ -13,10 +13,13 @@ class Generator{
 
         NodeProg m_root;
         stringstream m_out;
+        stringstream m_data;
         size_t m_stack_size=0;
         vector<Var> m_vars;
         vector<size_t> m_scopes;
         int m_label_count = 0;
+        int m_label_str_count = 0;
+        unordered_map<string, string> m_strings;
 
         void push(string reg){
             m_out<<"    push "<<reg<<"\n";
@@ -42,6 +45,15 @@ class Generator{
 
         string create_label(){
             return "label" + to_string(m_label_count++);
+        }
+
+        string get_string_label(const string& str) {
+            if (m_strings.find(str) == m_strings.end()) {
+                string label = "str" + to_string(m_label_str_count++);
+                m_strings[str] = label;
+                m_data << "    " << label << " db \"" << str << "\", 0\n";
+            }
+            return m_strings[str];
         }
     
     public:
@@ -109,6 +121,56 @@ class Generator{
                     gen.pop("rax");
                     gen.pop("rbx");
                     gen.m_out<<"    div rbx\n";
+                    gen.push("rax");
+                }
+                void operator()(const BinExprEq *equal) const{
+                    gen.gen_expr(equal->rhs);
+                    gen.gen_expr(equal->lhs);
+                    gen.pop("rax");
+                    gen.pop("rbx");
+                    gen.m_out<<"    cmp rax, rbx\n";
+                    gen.m_out<<"    sete al\n";
+                    gen.m_out<<"    movzx rax, al\n";
+                    gen.push("rax");
+                }
+                void operator()(const BinExprLess *less) const{
+                    gen.gen_expr(less->rhs);
+                    gen.gen_expr(less->lhs);
+                    gen.pop("rax");
+                    gen.pop("rbx");
+                    gen.m_out<<"    cmp rax, rbx\n";
+                    gen.m_out<<"    setl al\n";
+                    gen.m_out<<"    movzx rax, al\n";
+                    gen.push("rax");
+                }
+                void operator()(const BinExprLessEq *lessEq) const{
+                    gen.gen_expr(lessEq->rhs);
+                    gen.gen_expr(lessEq->lhs);
+                    gen.pop("rax");
+                    gen.pop("rbx");
+                    gen.m_out<<"    cmp rax, rbx\n";
+                    gen.m_out<<"    setle al\n";
+                    gen.m_out<<"    movzx rax, al\n";
+                    gen.push("rax");
+                }
+                void operator()(const BinExprGreat *great) const{
+                    gen.gen_expr(great->rhs);
+                    gen.gen_expr(great->lhs);
+                    gen.pop("rax");
+                    gen.pop("rbx");
+                    gen.m_out<<"    cmp rax, rbx\n";
+                    gen.m_out<<"    setg al\n";
+                    gen.m_out<<"    movzx rax, al\n";
+                    gen.push("rax");
+                }
+                void operator()(const BinExprGreatEq *greatEq) const{
+                    gen.gen_expr(greatEq->rhs);
+                    gen.gen_expr(greatEq->lhs);
+                    gen.pop("rax");
+                    gen.pop("rbx");
+                    gen.m_out<<"    cmp rax, rbx\n";
+                    gen.m_out<<"    setge al\n";
+                    gen.m_out<<"    movzx rax, al\n";
                     gen.push("rax");
                 }
             };
@@ -215,19 +277,68 @@ class Generator{
                     gen.pop("rax");
                     gen.m_out<<"    mov [rsp + " << (gen.m_stack_size - (*it).stack_loc - 1)*8 <<"],rax\n";
                 }
+                void operator()(const NodeStamtLoop *loop) const{
+                    string label1 = gen.create_label();
+                    string label2 = gen.create_label();
+                    gen.m_out<<label2<<":\n";
+                    gen.gen_expr(loop->expr);
+                    gen.pop("rax");
+                    gen.m_out<<"    test rax, rax\n";
+                    gen.m_out<<"    jz "<<label1<<"\n";
+                    gen.gen_scope(loop->scope);
+                    gen.m_out<<"    jmp "<<label2 << "\n";
+                    gen.m_out<<label1 <<":\n";
+
+                }
+                void operator()(const NodeStamtPrint *print){
+                    string str_label = gen.get_string_label(print->str);
+                    gen.m_out << "    mov rax, 1\n";
+                    gen.m_out << "    mov rdi, 1\n";
+                    gen.m_out << "    mov rsi, " << str_label << "\n";
+                    gen.m_out << "    mov rdx, " << (print->str.length()) << "\n";
+                    gen.m_out << "    syscall\n";
+                    gen.m_out << "    mov rax, 1\n";
+                    gen.m_out << "    mov rdi, 1\n";
+                    gen.m_out << "    mov rsi, newline\n"; 
+                    gen.m_out << "    mov rdx, 1\n"; 
+                    gen.m_out << "    syscall\n";
+                }
             };
             StamtVisitor visitor{.gen = *this};
             visit(visitor,s->var);
         }
         string generate(){
-            stringstream out;
+            for(auto stmnts:m_root.stamts){
+                struct StamtVisitor{
+                    Generator &gen;
+                    void operator()(const NodeStamtExit *stamt_exit) const{
+                    }
+                    void operator()(const NodeStamtAssign *assign) const{
+                    }
+                    void operator()(const NodeStamtLoop *loop) const{
+                    }
+                    void operator()(const NodeStamtIf *if_) const{
+                    }
+                    void operator()(const NodeStamtLet *let) const{
+                    }
+                    void operator()(const NodeScope *scope) const{
+                    }
+                    void operator()(const NodeStamtPrint *print) const{
+                        gen.get_string_label(print->str);
+                    }
+
+                };
+                StamtVisitor visitor{.gen = *this};
+                visit(visitor,stmnts->var);
+            }
+            m_out << "section .data\n";
+            m_out << m_data.str();
+            m_out << "    newline db 0xA\n";
+            m_out << "section .text\n";
             m_out<< "global _start\n_start:\n";
             for(auto stmnts:m_root.stamts){
                 gen_stamt(stmnts);
             }
-
-
-
             m_out<<"    mov rax, 60\n";
             m_out<<"    mov rdi, 0\n";
             m_out<<"    syscall";

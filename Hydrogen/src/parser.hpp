@@ -43,8 +43,28 @@ struct BinExprDiv{
     NodeExpr* lhs;
     NodeExpr* rhs;
 };
+struct BinExprLess{
+    NodeExpr* lhs;
+    NodeExpr* rhs;
+};
+struct BinExprLessEq{
+    NodeExpr* lhs;
+    NodeExpr* rhs;
+};
+struct BinExprGreat{
+    NodeExpr* lhs;
+    NodeExpr* rhs;
+};
+struct BinExprGreatEq{
+    NodeExpr* lhs;
+    NodeExpr* rhs;
+};
+struct BinExprEq{
+    NodeExpr* lhs;
+    NodeExpr* rhs;
+};
 struct BinExpr{
-    variant<BinExprAdd*,BinExprMul*,BinExprSub*,BinExprDiv*> var;
+    variant<BinExprAdd*,BinExprMul*,BinExprSub*,BinExprDiv*,BinExprGreat*,BinExprGreatEq*,BinExprLess*,BinExprLessEq*,BinExprEq*> var;
 };
 
 struct NodeStamtExit{
@@ -79,8 +99,16 @@ struct NodeStamtAssign{
     Token iden;
     NodeExpr* expr;
 };
+struct NodeStamtLoop{
+    NodeExpr* expr;
+    NodeScope* scope;
+};
+struct NodeStamtPrint{
+    string str;
+    size_t len;
+};
 struct NodeStamt{
-    variant<NodeStamtExit*,NodeStamtLet*,NodeScope*,NodeStamtIf*,NodeStamtAssign*> var;
+    variant<NodeStamtExit*,NodeStamtLet*,NodeScope*,NodeStamtIf*,NodeStamtAssign*,NodeStamtLoop*,NodeStamtPrint*> var;
 };
 struct NodeProg{
     vector<NodeStamt*> stamts;
@@ -214,6 +242,41 @@ class Parser{
                     div->lhs = expr_lhs2;
                     div->rhs = expr_rhs.value();
                     expr->var = div;
+                }
+                else if (op.type == TokenType::lt) {
+                    auto lt = m_allocator.alloc<BinExprLess>();
+                    expr_lhs2->var = expr_lhs->var;
+                    lt->lhs = expr_lhs2;
+                    lt->rhs = expr_rhs.value();
+                    expr->var = lt;
+                }
+                else if (op.type == TokenType::lte) {
+                    auto lte = m_allocator.alloc<BinExprLessEq>();
+                    expr_lhs2->var = expr_lhs->var;
+                    lte->lhs = expr_lhs2;
+                    lte->rhs = expr_rhs.value();
+                    expr->var = lte;
+                }
+                else if (op.type == TokenType::gt) {
+                    auto gt = m_allocator.alloc<BinExprGreat>();
+                    expr_lhs2->var = expr_lhs->var;
+                    gt->lhs = expr_lhs2;
+                    gt->rhs = expr_rhs.value();
+                    expr->var = gt;
+                }
+                else if (op.type == TokenType::gte) {
+                    auto gte = m_allocator.alloc<BinExprGreatEq>();
+                    expr_lhs2->var = expr_lhs->var;
+                    gte->lhs = expr_lhs2;
+                    gte->rhs = expr_rhs.value();
+                    expr->var = gte;
+                }
+                else if (op.type == TokenType::eqe) {
+                    auto eqe = m_allocator.alloc<BinExprEq>();
+                    expr_lhs2->var = expr_lhs->var;
+                    eqe->lhs = expr_lhs2;
+                    eqe->rhs = expr_rhs.value();
+                    expr->var = eqe;
                 }
                 else {
                     assert(false);
@@ -364,6 +427,40 @@ class Parser{
                 try_consume(TokenType::semi,"Expected ';'");
                 auto stamt = m_allocator.alloc<NodeStamt>();
                 stamt->var=assign;
+                return stamt;
+            }
+            else if(try_consume(TokenType::loop)){
+                try_consume(TokenType::open_param,"Expected '('");
+                auto loop = m_allocator.alloc<NodeStamtLoop>();
+                if(auto expr = parse_expr()){
+                    loop->expr=expr.value();
+                }
+                else{
+                    cerr<<"Expected an Expression"<<endl;
+                    exit(EXIT_FAILURE);
+                }
+                try_consume(TokenType::close_param,"Expected ')'");
+                if(auto scope = parse_scope()){
+                    loop->scope=scope.value();
+                }
+                else{
+                    cerr<<"Invalid Scope"<<endl;
+                    exit(EXIT_FAILURE);
+                }
+                auto stamt = m_allocator.alloc<NodeStamt>();
+                stamt->var=loop;
+                return stamt;
+            }
+            else if(try_consume(TokenType::print)){
+                try_consume(TokenType::open_param,"Expected (");
+                auto stamtPrint = m_allocator.alloc<NodeStamtPrint>();
+                auto val = consume();
+                stamtPrint->str = val.value.value();
+                stamtPrint->len = val.value.value().length();
+                try_consume(TokenType::close_param,"Expected )");
+                try_consume(TokenType::semi,"Expected ;");
+                auto stamt = m_allocator.alloc<NodeStamt>();
+                stamt->var = stamtPrint;
                 return stamt;
             }
             else{

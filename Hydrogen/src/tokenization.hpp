@@ -7,7 +7,7 @@
 using namespace std;
 
 enum class TokenType{
-    exit,int_lit,semi,close_param,open_param,iden,let,eq,plus,mul,sub,div,open_curly,close_curly,if_,elif,else_
+    exit,int_lit,semi,close_param,open_param,iden,let,eq,plus,mul,sub,div,open_curly,close_curly,if_,elif,else_,gt,gte,lt,lte,eqe,loop,print,string_
 };
 
 struct Token{
@@ -18,12 +18,18 @@ struct Token{
 optional<int> bin_prec(TokenType type){
     switch (type)
     {
+        case TokenType::eqe:
+        case TokenType::gt:
+        case TokenType::gte:
+        case TokenType::lt:
+        case TokenType::lte:
+            return 0;
         case TokenType::sub:
         case TokenType::plus:
-            return 0;
+            return 1;
         case TokenType::div:
         case TokenType::mul:
-            return 1;
+            return 2;
         default:
             return {};
     }
@@ -75,6 +81,11 @@ class Tokenizer{
                         temp="";
                         
                     }
+                    else if(temp == "until"){
+                        tokens.push_back({.type = TokenType::loop,.value = temp});
+                        temp="";
+                        
+                    }
                     else if(temp == "orelse"){
                         tokens.push_back({.type = TokenType::elif,.value = temp});
                         temp="";
@@ -85,11 +96,29 @@ class Tokenizer{
                         temp="";
                         
                     }
+                    else if(temp == "say"){
+                        tokens.push_back({.type = TokenType::print,.value = temp});
+                        temp="";
+                    }
                     else{
                         tokens.push_back({.type = TokenType::iden,.value = temp});
-                        temp="";
-                        
+                        temp=""; 
                     }
+                }
+                else if(peek().value()=='"'){
+                    consume();
+                    while(peek().has_value() && peek().value()!='"'){
+                        temp+=consume();
+                    }
+                    if(!peek().has_value()){
+                        cerr<<"Expected \""<<endl;
+                        exit(EXIT_FAILURE);
+                    }
+                    else{
+                        consume();
+                        tokens.push_back({.type = TokenType::string_ , .value=temp});
+                    }
+                    temp="";
                 }
                 else if(isdigit(peek().value())){
                     while(peek().has_value() && isdigit(peek().value())){
@@ -134,7 +163,12 @@ class Tokenizer{
                 }
                 else if(peek().value() == '='){
                     consume();
-                    tokens.push_back({.type = TokenType::eq});
+                    if(peek().has_value() && peek().value()=='='){
+                        consume();
+                        tokens.push_back({.type = TokenType::eqe});
+                    }
+                    else
+                        tokens.push_back({.type = TokenType::eq});
                     
                 }
                 else if(peek().value() == '+'){
@@ -165,6 +199,26 @@ class Tokenizer{
                 else if(peek().value() == '}'){
                     consume();
                     tokens.push_back({.type = TokenType::close_curly});
+                    
+                }
+                else if(peek().value() == '<'){
+                    consume();
+                    if(peek().has_value() && peek().value() == '='){
+                        consume();
+                        tokens.push_back({.type = TokenType::lte});
+                    }
+                    else
+                        tokens.push_back({.type = TokenType::lt});
+                    
+                }
+                else if(peek().value() == '>'){
+                    consume();
+                    if(peek().has_value() && peek().value() == '='){
+                        consume();
+                        tokens.push_back({.type = TokenType::gte});
+                    }
+                    else
+                        tokens.push_back({.type = TokenType::gt});
                     
                 }
                 else if(isspace(peek().value())){
