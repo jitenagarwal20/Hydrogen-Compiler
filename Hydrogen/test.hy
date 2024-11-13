@@ -1,7 +1,6 @@
 assume x = 5;
 assume y = 10;
-say("sneha pyari hai");
-say(69);
+say("hello");
 until(x<=y){
     x=x*2;
 }

@@ -1,6 +1,5 @@
 section .data
-    str0 db "sneha pyari hai", 0
-    str1 db "69", 0
+    str0 db "sneha gawar h", 0
     newline db 0xA
 section .text
 global _start
@@ -12,17 +11,7 @@ _start:
     mov rax, 1
     mov rdi, 1
     mov rsi, str0
-    mov rdx, 15
-    syscall
-    mov rax, 1
-    mov rdi, 1
-    mov rsi, newline
-    mov rdx, 1
-    syscall
-    mov rax, 1
-    mov rdi, 1
-    mov rsi, str1
-    mov rdx, 2
+    mov rdx, 13
     syscall
     mov rax, 1
     mov rdi, 1
